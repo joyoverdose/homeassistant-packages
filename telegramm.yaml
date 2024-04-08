@@ -1,0 +1,134 @@
+telegramm:
+
+
+    sensor:
+
+      - platform: template
+        sensors:
+
+          unavailable_now_light:
+            friendly_name: "Усього недоступних світильників - "
+            entity_id:
+              - sensor.time
+            value_template: "{{states.light | selectattr ('state', 'equalto', 'unavailable') | list | length}}"
+            icon_template: mdi:counter        
+
+          unavailable_now_switch:
+            friendly_name: "Усього недоступних реле - "
+            entity_id:
+              - sensor.time
+            value_template: "{{states.switch | selectattr ('state', 'equalto', 'unavailable') | list | length}}"
+            icon_template: mdi:counter 
+            
+          unavailable_now_sensor:
+            friendly_name: "Усього недоступних сенсорів - "
+            entity_id:
+              - sensor.time
+            value_template: "{{states.sensor | selectattr ('state', 'equalto', 'unavailable') | list | length}}"
+            icon_template: mdi:counter
+            
+          unavailable_now_binary_sensor:
+            friendly_name: "Усього недоступних бінарних сенсорів - "
+            entity_id:
+              - sensor.time
+            value_template: "{{states.binary_sensor | selectattr ('state', 'equalto', 'unavailable') | list | length}}"
+            icon_template: mdi:counter
+
+    script:
+    
+      send_message_1:
+        alias: Надсилання через сервіс повідомлень
+        sequence:
+        - service: notify.telegram_id_1
+          data:
+            message: "Поточний час - {{ states('sensor.time') }} . Все добре"
+            
+      system_report:
+        alias: Надсилання звіту про стан системи
+        sequence:
+         - service: notify.telegram_id_1
+           data:
+             message: | 
+                 {{"\U0001F6C0"}} Стан системи
+                 {{"\U0001F567"}} Звіт за {{ states('sensor.time_date') }}
+                 {{"\U0001F4A1"}} Світильників недоступно - {{ states('sensor.unavailable_now_light') }} 
+                 {{"\U0001F50C"}} Свічей недоступно - {{ states('sensor.unavailable_now_switch') }} 
+                 {{"\U0001F321"}} Сенсорів недоступно - {{ states('sensor.unavailable_now_sensor') }} 
+                 {{"\U0001F51F"}} Бінарні сенсори недоступно - {{ states('sensor.unavailable_now_binary_sensor') }}             
+            
+                        
+    automation:   
+    
+        - id: Звіт під час запуску системи
+          alias: start_message
+          initial_state: true
+          trigger:   
+             - platform: homeassistant
+               event: start          
+          action:          
+             - service: notify.telegram_id_1
+               data:
+                 message: | 
+                     {{"\U0001F4AC"}} Основний сервер PROXMOS 
+                     {{"\U0001F567"}} Зафіксовано запуск о {{ states('sensor.time_date') }} 
+                     {{"\U0001F4C3"}} Звіт про стан буде через 1 хвилину           
+             - delay: 00:01:10
+             - service: script.turn_on
+               entity_id: script.system_report
+               
+               
+        - id: Запит на звіт             
+          alias: send_report
+          initial_state: true
+          trigger:
+          - platform: event
+            event_type: telegram_command
+            event_data:
+              command: '/report'
+          action:
+           - service: script.turn_on
+             entity_id: 
+                - script.system_report
+                
+        - id: Включити світло            
+          alias: send_light
+          initial_state: true
+          trigger:
+          - platform: event
+            event_type: telegram_command
+            event_data:
+              command: '/light'
+          action:
+           - service: light.turn_on
+             entity_id: 
+                - light.yeelight_ceilb_0x182bc06d
+                
+        - id: Повідомлення про включення            
+          alias: send_light_on
+          initial_state: false
+          trigger:
+          - platform: state
+            entity_id: light.yeelight_ceilb_0x182bc06d
+            to: 'on'
+          action:
+          - service: notify.telegram_id_1
+            data:
+              message: "Потолок студія ввімкнено в - {{ states('sensor.time') }} "
+
+        - id: Клавіатура телеграм бота
+          alias: telegram_keyboard
+          initial_state: true
+          trigger:
+          - platform: event
+            event_type: telegram_command
+            event_data:
+              command: '/start'
+          action:
+          - service: notify.telegram_id_1
+            data:
+              message: 'commands'
+              data:
+                keyboard:
+                   - '/220V, /report, /light3' 
+                   - '/TEMP, /light, /light3'           
+                   - '/report3, /light4, /METER'          
